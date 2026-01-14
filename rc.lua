@@ -16,10 +16,6 @@ local naughty = require("naughty")
 -- Declarative object management
 local ruled = require("ruled")
 local menubar = require("menubar")
-local hotkeys_popup = require("awful.hotkeys_popup")
--- Enable hotkeys help widget for VIM and other apps
--- when client with a matching name is opened:
-require("awful.hotkeys_popup.keys")
 
 local screen = screen
 local tag = tag
@@ -41,9 +37,6 @@ end)
 -- {{{ Variable definitions
 -- Themes define colours, icons, font and wallpapers.
 beautiful.init(gears.filesystem.get_themes_dir() .. "gtk/theme.lua")
---beautiful.tasklist_fg_focus = beautiful.taglist_fg_focus
---beautiful.tasklist_bg_focus = beautiful.taglist_gg_focus
-beautiful.tasklist_align = "center"
 beautiful.wibar_margins = {
 	left   = beautiful.useless_gap * 2,
 	right  = beautiful.useless_gap * 2,
@@ -53,7 +46,12 @@ beautiful.wibar_margins = {
 beautiful.wibar_bg = gears.color.change_opacity(beautiful.wibar_bg, 0.7)
 beautiful.taglist_bg_empty = nil
 beautiful.taglist_bg_occupied = nil
-beautiful.tasklist_bg_focus = gears.color.change_opacity(beautiful.tasklist_bg_focus, 0)
+beautiful.tasklist_bg_focus = beautiful.taglist_bg_focus
+
+local hotkeys_popup = require("awful.hotkeys_popup")
+-- Enable hotkeys help widget for VIM and other apps
+-- when client with a matching name is opened:
+require("awful.hotkeys_popup.keys")
 
 -- This is used later as the default terminal and editor to run.
 local terminal = "kitty -1"
@@ -88,11 +86,12 @@ end)
 screen.connect_signal("request::wallpaper", function(s)
 	awful.wallpaper {
 		screen = s,
+		bg = "#000000",
 		widget = {
 			{
 				image     = gears.filesystem.get_configuration_dir() .. "wallpaper.jpg",
-				upscale   = true,
-				downscale = true,
+				upscale   = false,
+				downscale = false,
 				widget    = wibox.widget.imagebox,
 			},
 			valign = "center",
@@ -112,11 +111,11 @@ end)
 -- Create a textclock widget
 local mytextclock = wibox.widget.textclock "%H:%M"
 local cal = awful.widget.calendar_popup.month()
-cal:attach(mytextclock, "tc")
+cal:attach(mytextclock, "tr")
 
 screen.connect_signal("request::desktop_decoration", function(s)
 	-- Each screen has its own tag table.
-	awful.tag({ "1", "2", "3", "4", "5", "6", "7", "8", "9" }, s, awful.layout.layouts[2])
+	awful.tag({ "1", "2", "3", "4", "5", "6", "7", "8", "9", "0" }, s, awful.layout.layouts[2])
 
 	-- Create a promptbox for each screen
 	s.mypromptbox = awful.widget.prompt()
@@ -161,38 +160,29 @@ screen.connect_signal("request::desktop_decoration", function(s)
 		position = "top",
 		screen   = s,
 		widget   = {
-			layout = wibox.layout.stack,
+			layout = wibox.layout.align.horizontal,
 			{
-				{
-					layout = wibox.layout.fixed.horizontal,
-					s.mypromptbox,
-					s.mytaglist,
-					awful.widget.tasklist {
-						screen = s,
-						filter = awful.widget.tasklist.filter.focused,
-						buttons = {
-							awful.button({}, 3, function()
-								awful.menu
-								    .client_list { theme = { width = 250 } }
-							end),
-						}
-					}
-				},
-				widget = wibox.container.place,
-				halign = "left",
+				layout = wibox.layout.fixed.horizontal,
+				s.mypromptbox,
+				s.mytaglist,
+			},
+			awful.widget.tasklist {
+				screen = s,
+				filter = awful.widget.tasklist.filter.currenttags,
+				buttons = {
+					awful.button({}, 1, function(c)
+						c:activate { context = "tasklist", action = "toggle_minimization" }
+					end),
+					awful.button({}, 3, function() awful.menu.client_list { theme = { width = 250 } } end),
+					awful.button({}, 4, function() awful.client.focus.byidx(-1) end),
+					awful.button({}, 5, function() awful.client.focus.byidx(1) end),
+				}
 			},
 			{
+				layout = wibox.layout.fixed.horizontal,
+				wibox.widget.systray(),
+				s.mylayoutbox,
 				mytextclock,
-				widget = wibox.container.place,
-			},
-			{
-				{
-					layout = wibox.layout.fixed.horizontal,
-					wibox.widget.systray(),
-					s.mylayoutbox,
-				},
-				widget = wibox.container.place,
-				halign = "right",
 			},
 		}
 	}
@@ -236,6 +226,11 @@ awful.keyboard.append_global_keybindings({
 			}
 		end,
 		{ description = "lua execute prompt", group = "awesome" }),
+	awful.key({ modkey }, "l",
+		function()
+			--awful.spawn("dm-tool lock")
+		end,
+		{ description = "lock screen", group = "awesome" }),
 	awful.key({ modkey, }, "Return", function() awful.spawn(terminal) end,
 		{ description = "open a terminal", group = "launcher" }),
 	awful.key({ modkey, }, "'", function() awful.spawn(browser) end,
@@ -464,7 +459,8 @@ ruled.client.connect_signal("request::rules", function()
 			focus     = awful.client.focus.filter,
 			raise     = true,
 			screen    = awful.screen.preferred,
-			placement = awful.placement.no_overlap + awful.placement.no_offscreen
+			--			placement = awful.placement.no_overlap + awful.placement.no_offscreen
+			placement = awful.placement.centered
 		}
 	}
 
@@ -488,8 +484,55 @@ ruled.client.connect_signal("request::rules", function()
 		},
 		properties = { floating = true }
 	}
+
+	--[[
+	ruled.client.append_rule {
+		id         = "titlebars",
+		rule_any   = { type = { "normal", "dialog" } },
+		properties = { titlebars_enabled = false }
+	}
+	--]]
 end)
 -- }}}
+--
+--[[
+client.connect_signal("request::titlebars", function(c)
+	-- buttons for the titlebar
+	local buttons = {
+		awful.button({}, 1, function()
+			c:activate { context = "titlebar", action = "mouse_move" }
+		end),
+		awful.button({}, 3, function()
+			c:activate { context = "titlebar", action = "mouse_resize" }
+		end),
+	}
+
+	awful.titlebar(c).widget = {
+		{ -- Left
+			awful.titlebar.widget.iconwidget(c),
+			buttons = buttons,
+			layout  = wibox.layout.fixed.horizontal
+		},
+		{ -- Middle
+			{ -- Title
+				halign = "center",
+				widget = awful.titlebar.widget.titlewidget(c)
+			},
+			buttons = buttons,
+			layout  = wibox.layout.flex.horizontal
+		},
+		{ -- Right
+			awful.titlebar.widget.floatingbutton(c),
+			awful.titlebar.widget.maximizedbutton(c),
+			awful.titlebar.widget.stickybutton(c),
+			awful.titlebar.widget.ontopbutton(c),
+			awful.titlebar.widget.closebutton(c),
+			layout = wibox.layout.fixed.horizontal()
+		},
+		layout = wibox.layout.align.horizontal
+	}
+end)
+--]]
 
 -- {{{ Notifications
 
