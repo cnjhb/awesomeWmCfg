@@ -1,4 +1,4 @@
-local terminal = "kitty -1"
+local terminal = "gnome-terminal"
 local browser = "firefox"
 local file_manager = "thunar"
 local modkey = "Mod4"
@@ -129,6 +129,10 @@ pomodoro:connect_signal("somodoro::finish", function()
 	textclock.visible = true
 	pomodorowidget.visible = false
 	beautiful.tasklist_bg_focus = pomodorocolors.finish.tasklist_bg_focus
+	naughty.notification {
+		title = "Pomodoro",
+		text = "finished",
+	}
 end)
 screen.connect_signal("request::desktop_decoration", function(s)
 	awful.tag({ "1", "2", "3", "4", "5", "6", "7",
