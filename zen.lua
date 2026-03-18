@@ -15,6 +15,15 @@ menubar.utils.terminal = terminal
 local hotkeys_popup = require "awful.hotkeys_popup"
 local somodoro = require "somodoro"
 
+
+naughty.connect_signal("request::display_error", function(message, startup)
+	naughty.notification {
+		urgency = "critical",
+		title   = "Oops, an error happened" .. (startup and " during startup!" or "!"),
+		message = message
+	}
+end)
+
 local pomodoro = somodoro()
 
 local tag = tag
@@ -131,7 +140,7 @@ pomodoro:connect_signal("somodoro::finish", function()
 	beautiful.tasklist_bg_focus = pomodorocolors.finish.tasklist_bg_focus
 	naughty.notification {
 		title = "Pomodoro",
-		text = "finished",
+		message = "finished",
 	}
 end)
 screen.connect_signal("request::desktop_decoration", function(s)
@@ -272,7 +281,7 @@ screenshot.directory = screenshot.directory .. "/Screenshots"
 screenshot:connect_signal("file::saved", function(self)
 	naughty.notification {
 		title = self.file_name,
-		text = "Screenshot saved",
+		message = "Screenshot saved",
 		icon = self.surface,
 		icon_size = 128,
 	}
