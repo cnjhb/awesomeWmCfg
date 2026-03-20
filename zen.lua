@@ -341,6 +341,30 @@ local Vte = lgi.require("Vte", "2.91")
 Gtk.init()
 local HOME = os.getenv "HOME"
 local SHELL = os.getenv "SHELL"
+local term_colors = {
+	"#21222c",
+	"#ff5555",
+	"#50fa7b",
+	"#f1fa8c",
+	"#bd93f9",
+	"#ff79c6",
+	"#8be9fd",
+	"#f8f8f2",
+
+	"#6272a4",
+	"#ff6e6e",
+	"#69ff94",
+	"#ffffa5",
+	"#d6acff",
+	"#ff92df",
+	"#a4ffff",
+	"#ffffff",
+}
+local term_rgba = {
+}
+for i = 1, #term_colors do
+	term_rgba[i] = Gdk.RGBA.parse(term_colors[i])
+end
 awful.keyboard.append_global_keybindings {
 	group = "launcher",
 	awful.key {
@@ -352,7 +376,7 @@ awful.keyboard.append_global_keybindings {
 			}
 			term:spawn_sync(Vte.PtyFlags.DEFAULT, HOME, { SHELL }, nil, GLib.SpawnFlags.DEFAULT, function()
 			end)
-			term:set_clear_background(false)
+			term:set_colors(nil,nil,term_rgba)
 			local win = Gtk.Window {
 				icon_name = "terminal",
 				child = term,
