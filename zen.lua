@@ -1,4 +1,4 @@
-local terminal = "gnome-terminal"
+local terminal = "kitty -1"
 local browser = "firefox"
 local file_manager = "thunar"
 local modkey = "Mod4"
@@ -14,7 +14,6 @@ local menubar = require "menubar"
 menubar.utils.terminal = terminal
 local hotkeys_popup = require "awful.hotkeys_popup"
 local somodoro = require "somodoro"
-
 
 naughty.connect_signal("request::display_error", function(message, startup)
 	naughty.notification {
@@ -334,12 +333,53 @@ awful.keyboard.append_global_keybindings {
 	},
 }
 
+local lgi = require "lgi"
+local Gtk = lgi.require("Gtk", "3.0")
+local Gdk = lgi.require("Gdk", "3.0")
+local GLib = lgi.GLib
+local Vte = lgi.require("Vte", "2.91")
+Gtk.init()
+local HOME = os.getenv "HOME"
+local SHELL = os.getenv "SHELL"
 awful.keyboard.append_global_keybindings {
 	group = "launcher",
 	awful.key {
 		modifiers = { modkey },
 		key = "Return",
-		on_press = function() awful.spawn(terminal) end,
+		on_press = function()
+			local term = Vte.Terminal {
+				scrollback_lines = 20000
+			}
+			term:spawn_sync(Vte.PtyFlags.DEFAULT, HOME, { SHELL }, nil, GLib.SpawnFlags.DEFAULT, function()
+			end)
+			term:set_clear_background(false)
+			local win = Gtk.Window {
+				icon_name = "terminal",
+				child = term,
+				title = "Terminal",
+			}
+			function term:on_child_exited()
+				win:close()
+			end
+
+			term.on_termprop_changed[Vte.TERMPROP_XTERM_TITLE] = function()
+				local title = term:get_termprop_string(Vte.TERMPROP_XTERM_TITLE)
+				win.title = title or "Terminal"
+			end
+			function win:on_key_press_event(event)
+				if event.state.CONTROL_MASK and event.state.SHIFT_MASK then
+					if event.keyval == Gdk.KEY_C then
+						term:copy_clipboard()
+						return true
+					elseif event.keyval == Gdk.KEY_V then
+						term:paste_clipboard()
+						return true
+					end
+				end
+			end
+
+			win:show_all()
+		end,
 		description = "open a terminal",
 	},
 	awful.key {
