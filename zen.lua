@@ -1,4 +1,4 @@
-local terminal = "kitty -1"
+local terminal = "sakura"
 local browser = "firefox"
 local file_manager = "thunar"
 local modkey = "Mod4"
@@ -14,6 +14,13 @@ local menubar = require "menubar"
 menubar.utils.terminal = terminal
 local hotkeys_popup = require "awful.hotkeys_popup"
 local somodoro = require "somodoro"
+
+local lgi = require "lgi"
+local Gtk = lgi.require("Gtk", "3.0")
+local Gio = lgi.Gio
+Gtk.init()
+
+local aweterm = require "aweterm"
 
 naughty.connect_signal("request::display_error", function(message, startup)
 	naughty.notification {
@@ -333,75 +340,13 @@ awful.keyboard.append_global_keybindings {
 	},
 }
 
-local lgi = require "lgi"
-local Gtk = lgi.require("Gtk", "3.0")
-local Gdk = lgi.require("Gdk", "3.0")
-local GLib = lgi.GLib
-local Vte = lgi.require("Vte", "2.91")
-Gtk.init()
-local HOME = os.getenv "HOME"
-local SHELL = os.getenv "SHELL"
-local term_colors = {
-	"#21222c",
-	"#ff5555",
-	"#50fa7b",
-	"#f1fa8c",
-	"#bd93f9",
-	"#ff79c6",
-	"#8be9fd",
-	"#f8f8f2",
-
-	"#6272a4",
-	"#ff6e6e",
-	"#69ff94",
-	"#ffffa5",
-	"#d6acff",
-	"#ff92df",
-	"#a4ffff",
-	"#ffffff",
-}
-local term_rgba = {
-}
-for i = 1, #term_colors do
-	term_rgba[i] = Gdk.RGBA.parse(term_colors[i])
-end
 awful.keyboard.append_global_keybindings {
 	group = "launcher",
 	awful.key {
 		modifiers = { modkey },
 		key = "Return",
 		on_press = function()
-			local term = Vte.Terminal {
-				scrollback_lines = 20000
-			}
-			term:spawn_sync(Vte.PtyFlags.DEFAULT, HOME, { SHELL }, nil, GLib.SpawnFlags.DEFAULT, function()
-			end)
-			term:set_colors(nil,nil,term_rgba)
-			local win = Gtk.Window {
-				icon_name = "terminal",
-				child = term,
-				title = "Terminal",
-			}
-			function term:on_child_exited()
-				win:close()
-			end
-
-			term.on_termprop_changed[Vte.TERMPROP_XTERM_TITLE] = function()
-				local title = term:get_termprop_string(Vte.TERMPROP_XTERM_TITLE)
-				win.title = title or "Terminal"
-			end
-			function win:on_key_press_event(event)
-				if event.state.CONTROL_MASK and event.state.SHIFT_MASK then
-					if event.keyval == Gdk.KEY_C then
-						term:copy_clipboard()
-						return true
-					elseif event.keyval == Gdk.KEY_V then
-						term:paste_clipboard()
-						return true
-					end
-				end
-			end
-
+			local win = aweterm {}
 			win:show_all()
 		end,
 		description = "open a terminal",
@@ -491,3 +436,44 @@ awful.keyboard.append_global_keybindings {
 		description = "finish pomodoro",
 	},
 }
+
+local source = Gio.SettingsSchemaSource.get_default()
+if source:lookup("cn.jhb.awesome") then
+	local settings = Gio.Settings.new "cn.jhb.awesome"
+	local backlight = io.open("/sys/class/backlight/amdgpu_bl0/brightness", "w")
+	if backlight then
+		backlight:write(string.format("%d", settings:get_int "brightness"))
+		backlight:flush()
+		settings.on_changed["brightness"] = function()
+			backlight:write(string.format("%d", settings:get_int "brightness"))
+			backlight:flush()
+			naughty.notification {
+				title = "Backlight",
+				message = string.format("%d", settings:get_int "brightness")
+			}
+		end
+		awful.keyboard.append_global_keybindings {
+			group = "backlight",
+			awful.key {
+				modifiers = {},
+				key = "XF86MonBrightnessUp",
+				on_press = function()
+					settings:set_int("brightness",
+						settings:get_int "brightness" > 90 and 100 or
+						settings:get_int "brightness" + 10)
+				end,
+				description = "increase brightness",
+			},
+			awful.key {
+				modifiers = {},
+				key = "XF86MonBrightnessDown",
+				on_press = function()
+					settings:set_int("brightness",
+						settings:get_int "brightness" < 10 and 0 or
+						settings:get_int "brightness" - 10)
+				end,
+				description = "decrease brightness",
+			},
+		}
+	end
+end

@@ -1,0 +1,7 @@
+<schemalist>
+	<schema id="cn.jhb.awesome" path="/cn/jhb/awesome/">
+		<key name="brightness" type="i">
+			<default>50</default>
+		</key>
+	</schema>
+</schemalist>
