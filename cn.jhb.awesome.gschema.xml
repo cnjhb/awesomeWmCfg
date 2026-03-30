@@ -3,5 +3,11 @@
 		<key name="brightness" type="i">
 			<default>50</default>
 		</key>
+		<key name="volume" type="i">
+			<default>50</default>
+		</key>
+		<key name="mute" type="b">
+			<default>false</default>
+		</key>
 	</schema>
 </schemalist>

@@ -149,6 +149,60 @@ pomodoro:connect_signal("somodoro::finish", function()
 		message = "finished",
 	}
 end)
+
+local timer = somodoro {
+	minutes = 5,
+}
+local timerbar = wibox.widget {
+	max_value = timer.seconds,
+	value = 700,
+	color = beautiful.bg_focus,
+	background_color = beautiful.bg_normal,
+	width = 0,
+	widget = wibox.widget.progressbar
+}
+local timertext = wibox.widget {
+	widget = wibox.widget.textbox,
+	text = "",
+}
+local timerst = wibox.widget {
+	widget = wibox.widget.textbox,
+	text = "",
+}
+local timerwidget = wibox.widget {
+	timerbar,
+	{
+		layout = wibox.layout.fixed.horizontal,
+		halign = "center",
+		valign = "center",
+		timerst,
+		timertext,
+	},
+	layout = wibox.layout.stack,
+	visible = false,
+}
+timer:connect_signal("somodoro::update", function()
+	timerbar.value = timer.elapsed
+	local remaining = timer.seconds - timer.elapsed
+	timertext.text = string.format("%02d:%02d", remaining / 60, remaining % 60)
+end)
+timer:connect_signal("somodoro::pause", function()
+	timerst.text = ""
+end)
+timer:connect_signal("somodoro::resume", function()
+	timerst.text = ""
+end)
+timer:connect_signal("somodoro::begin", function()
+	timerwidget.visible = true
+end)
+timer:connect_signal("somodoro::finish", function()
+	timerwidget.visible = false
+	naughty.notification {
+		title = "Timer",
+		message = "finished",
+	}
+end)
+
 screen.connect_signal("request::desktop_decoration", function(s)
 	awful.tag({ "1", "2", "3", "4", "5", "6", "7",
 		"8", "9", "0" }, s, awful.layout.layouts[1])
@@ -159,20 +213,36 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			awful.button({}, 1, function(t) t:view_only() end),
 		}
 	}
+
+	s.mypromptbox = awful.widget.prompt()
+
 	local tasklist = awful.widget.tasklist {
 		screen = s,
 		filter = awful.widget.tasklist.filter.currenttags,
+		buttons = {
+			awful.button({}, 1, function(c)
+				c:activate { context = "tasklist", action = "toggle_minimization" }
+			end),
+			awful.button({}, 3, function() awful.menu.client_list { theme = { width = 250 } } end),
+			awful.button({}, 4, function() awful.client.focus.byidx(-1) end),
+			awful.button({}, 5, function() awful.client.focus.byidx(1) end),
+		},
 	}
 	local bar = awful.wibar {
 		position = "top",
 		screen = s,
 		widget = {
 			layout = wibox.layout.align.horizontal,
-			taglist,
+			{
+				layout = wibox.layout.fixed.horizontal,
+				s.mypromptbox,
+				taglist,
+			},
 			tasklist,
 			{
 				layout = wibox.layout.fixed.horizontal,
 				tray,
+				timerwidget,
 				awful.widget.layoutbox {
 					screen = s,
 				},
@@ -255,6 +325,14 @@ client.connect_signal("request::default_keybindings", function()
 				c:move_to_screen()
 			end,
 			description = "move to screen",
+		},
+		awful.key {
+			modifiers = { modkey },
+			key = "t",
+			on_press = function(c)
+				c.ontop = not c.ontop
+			end,
+			description = "toggle keep on top",
 		},
 	}
 end)
@@ -369,6 +447,46 @@ awful.keyboard.append_global_keybindings {
 		on_press = function() awful.spawn(file_manager) end,
 		description = "open a file manager",
 	},
+	awful.key {
+		modifiers = { modkey },
+		key = "r",
+		on_press = function() awful.screen.focused().mypromptbox:run() end,
+		description = "run prompt",
+	},
+}
+
+awful.keyboard.append_global_keybindings {
+	group = "timer",
+	awful.key {
+		modifiers = { modkey, "Shift" },
+		key = "t",
+		on_press = function()
+			awful.prompt.run {
+				prompt = "Set the timer duration (minutes): ",
+				textbox = awful.screen.focused().mypromptbox.widget,
+				exe_callback = function(minutes)
+					timer.seconds = minutes * 60
+				end
+			}
+		end,
+		description = "set the timer duration",
+	},
+	awful.key {
+		modifiers = { modkey },
+		key = "t",
+		on_press = function()
+			timer:toggle()
+		end,
+		description = "toggle the timer",
+	},
+	awful.key {
+		modifiers = { modkey, "Control" },
+		key = "t",
+		on_press = function()
+			timer:finish()
+		end,
+		description = "finish timer",
+	},
 }
 
 awful.keyboard.append_global_keybindings {
@@ -418,7 +536,7 @@ awful.keyboard.append_global_keybindings {
 }
 
 awful.keyboard.append_global_keybindings {
-	group = "somodoro",
+	group = "pomodoro",
 	awful.key {
 		modifiers = { modkey, "Shift" },
 		key = "p",
@@ -449,7 +567,7 @@ if source:lookup("cn.jhb.awesome") then
 			backlight:flush()
 			naughty.notification {
 				title = "Backlight",
-				message = string.format("%d", settings:get_int "brightness")
+				message = string.format("%d%%", settings:get_int "brightness")
 			}
 		end
 		awful.keyboard.append_global_keybindings {
@@ -476,4 +594,37 @@ if source:lookup("cn.jhb.awesome") then
 			},
 		}
 	end
+
+	os.execute(string.format("amixer set Master %d%%", settings:get_int "volume"))
+	settings.on_changed["volume"] = function()
+		naughty.notification {
+			title = "volume",
+			message = string.format("%d%%", settings:get_int "volume")
+		}
+		os.execute(string.format("amixer set Master %d%%", settings:get_int "volume"))
+	end
+
+	awful.keyboard.append_global_keybindings {
+		group = "volume",
+		awful.key {
+			modifiers = {},
+			key = "XF86AudioRaiseVolume",
+			on_press = function()
+				settings:set_int("volume",
+					settings:get_int "volume" > 90 and 100 or
+					settings:get_int "volume" + 10)
+			end,
+			description = "increase volume",
+		},
+		awful.key {
+			modifiers = {},
+			key = "XF86AudioLowerVolume",
+			on_press = function()
+				settings:set_int("volume",
+					settings:get_int "volume" < 10 and 0 or
+					settings:get_int "volume" - 10)
+			end,
+			description = "decrease volume",
+		},
+	}
 end
