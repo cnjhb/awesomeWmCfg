@@ -118,9 +118,11 @@ pomodoro:connect_signal("somodoro::update", function()
 end)
 pomodoro:connect_signal("somodoro::pause", function()
 	pomodorost.text = ""
+	tray.visible = true
 end)
 pomodoro:connect_signal("somodoro::resume", function()
 	pomodorost.text = ""
+	tray.visible = false
 end)
 
 local pomodorocolors = {
@@ -143,6 +145,7 @@ pomodoro:connect_signal("somodoro::finish", function()
 	tray.visible = true
 	textclock.visible = true
 	pomodorowidget.visible = false
+	pomodorost.text = ""
 	beautiful.tasklist_bg_focus = pomodorocolors.finish.tasklist_bg_focus
 	naughty.notification {
 		title = "Pomodoro",
@@ -472,7 +475,7 @@ awful.keyboard.append_global_keybindings {
 		description = "set the timer duration",
 	},
 	awful.key {
-		modifiers = { modkey },
+		modifiers = { "Mod1" },
 		key = "t",
 		on_press = function()
 			timer:toggle()
@@ -560,10 +563,11 @@ if source:lookup("cn.jhb.awesome") then
 	local settings = Gio.Settings.new "cn.jhb.awesome"
 	local backlight = io.open("/sys/class/backlight/amdgpu_bl0/brightness", "w")
 	if backlight then
-		backlight:write(string.format("%d", settings:get_int "brightness"))
+		local max_brightness = tonumber(io.open("/sys/class/backlight/amdgpu_bl0/max_brightness"):read())
+		backlight:write(string.format("%d", settings:get_int "brightness" * max_brightness / 100))
 		backlight:flush()
 		settings.on_changed["brightness"] = function()
-			backlight:write(string.format("%d", settings:get_int "brightness"))
+			backlight:write(string.format("%d", settings:get_int "brightness" * max_brightness / 100))
 			backlight:flush()
 			naughty.notification {
 				title = "Backlight",
