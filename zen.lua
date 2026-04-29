@@ -607,6 +607,14 @@ if source:lookup("cn.jhb.awesome") then
 		}
 		os.execute(string.format("amixer set Master %d%%", settings:get_int "volume"))
 	end
+	os.execute("amixer set Master " .. (settings:get_boolean "mute" and "mute" or "unmute"))
+	settings.on_changed["mute"] = function()
+		naughty.notification {
+			title = "mute",
+			message = string.format("%s", settings:get_boolean "mute")
+		}
+		os.execute("amixer set Master " .. (settings:get_boolean "mute" and "mute" or "unmute"))
+	end
 
 	awful.keyboard.append_global_keybindings {
 		group = "volume",
@@ -629,6 +637,14 @@ if source:lookup("cn.jhb.awesome") then
 					settings:get_int "volume" - 10)
 			end,
 			description = "decrease volume",
+		},
+		awful.key {
+			modifiers = {},
+			key = "XF86AudioMute",
+			on_press = function()
+				settings:set_boolean("mute", not settings:get_boolean "mute")
+			end,
+			description = "mute",
 		},
 	}
 end
