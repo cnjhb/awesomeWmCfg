@@ -280,6 +280,19 @@ client.connect_signal("request::default_mousebindings", function()
 	}
 end)
 
+local screenshot = awful.screenshot {
+}
+screenshot.directory = screenshot.directory .. "/Screenshots"
+screenshot:connect_signal("file::saved", function(self)
+	naughty.notification {
+		title = self.file_name,
+		message = "Screenshot saved",
+		icon = self.surface,
+		icon_size = 128,
+	}
+	awful.spawn("xclip -selection clipboard -t image/png " .. self.file_path)
+end)
+
 client.connect_signal("request::default_keybindings", function()
 	awful.keyboard.append_client_keybindings {
 		group = "client",
@@ -337,6 +350,17 @@ client.connect_signal("request::default_keybindings", function()
 			end,
 			description = "toggle keep on top",
 		},
+		awful.key {
+			modifiers = { modkey },
+			key = "Print",
+			on_press = function(c)
+				screenshot.interactive = false
+				screenshot.client = c
+				screenshot:refresh()
+				screenshot:save()
+			end,
+			description = "take screenshot for client",
+		},
 	}
 end)
 
@@ -362,18 +386,6 @@ awful.keyboard.append_global_keybindings {
 	}
 }
 
-local screenshot = awful.screenshot {
-}
-screenshot.directory = screenshot.directory .. "/Screenshots"
-screenshot:connect_signal("file::saved", function(self)
-	naughty.notification {
-		title = self.file_name,
-		message = "Screenshot saved",
-		icon = self.surface,
-		icon_size = 128,
-	}
-	awful.spawn("xclip -selection clipboard -t image/png " .. self.file_path)
-end)
 awful.keyboard.append_global_keybindings {
 	group = "client",
 	awful.key {
@@ -405,6 +417,7 @@ awful.keyboard.append_global_keybindings {
 		key = "Print",
 		on_press = function()
 			screenshot.interactive = true
+			screenshot.client = nil
 			screenshot:refresh()
 		end,
 		description = "take interactive screenshot",
@@ -414,6 +427,7 @@ awful.keyboard.append_global_keybindings {
 		key = "Print",
 		on_press = function()
 			screenshot.interactive = false
+			screenshot.client = nil
 			screenshot:refresh()
 			screenshot:save()
 		end,
@@ -559,7 +573,7 @@ awful.keyboard.append_global_keybindings {
 }
 
 local source = Gio.SettingsSchemaSource.get_default()
-if source:lookup("cn.jhb.awesome") then
+if source:lookup "cn.jhb.awesome" then
 	local settings = Gio.Settings.new "cn.jhb.awesome"
 	local backlight = io.open("/sys/class/backlight/amdgpu_bl0/brightness", "w")
 	if backlight then
