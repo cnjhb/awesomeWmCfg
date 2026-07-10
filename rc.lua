@@ -13,7 +13,6 @@ local ruled = require("ruled")
 local menubar = require "menubar"
 menubar.utils.terminal = terminal
 local hotkeys_popup = require "awful.hotkeys_popup"
-local somodoro = require "somodoro"
 
 local lgi = require "lgi"
 local Gtk = lgi.require("Gtk", "3.0")
@@ -81,59 +80,6 @@ local cal = awful.widget.calendar_popup.month()
 cal:attach(textclock, "tr")
 local tray = wibox.widget.systray()
 
-local timer = somodoro {
-	minutes = 5,
-}
-local timerbar = wibox.widget {
-	max_value = timer.seconds,
-	value = 700,
-	color = beautiful.bg_focus,
-	background_color = beautiful.bg_normal,
-	width = 0,
-	widget = wibox.widget.progressbar
-}
-local timertext = wibox.widget {
-	widget = wibox.widget.textbox,
-	text = "",
-}
-local timerst = wibox.widget {
-	widget = wibox.widget.textbox,
-	text = "",
-}
-local timerwidget = wibox.widget {
-	timerbar,
-	{
-		layout = wibox.layout.fixed.horizontal,
-		halign = "center",
-		valign = "center",
-		timerst,
-		timertext,
-	},
-	layout = wibox.layout.stack,
-	visible = false,
-}
-timer:connect_signal("somodoro::update", function()
-	timerbar.value = timer.elapsed
-	local remaining = timer.seconds - timer.elapsed
-	timertext.text = string.format("%02d:%02d", remaining / 60, remaining % 60)
-end)
-timer:connect_signal("somodoro::pause", function()
-	timerst.text = ""
-end)
-timer:connect_signal("somodoro::resume", function()
-	timerst.text = ""
-end)
-timer:connect_signal("somodoro::begin", function()
-	timerwidget.visible = true
-end)
-timer:connect_signal("somodoro::finish", function()
-	timerwidget.visible = false
-	naughty.notification {
-		title = "Timer",
-		message = "finished",
-	}
-end)
-
 screen.connect_signal("request::desktop_decoration", function(s)
 	awful.tag({ "1", "2", "3", "4", "5", "6", "7",
 		"8", "9", "0" }, s, awful.layout.layouts[1])
@@ -173,7 +119,6 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			{
 				layout = wibox.layout.fixed.horizontal,
 				tray,
-				timerwidget,
 				awful.widget.layoutbox {
 					screen = s,
 				},
@@ -386,40 +331,6 @@ awful.keyboard.append_global_keybindings {
 		key = "r",
 		on_press = function() awful.screen.focused().mypromptbox:run() end,
 		description = "run prompt",
-	},
-}
-
-awful.keyboard.append_global_keybindings {
-	group = "timer",
-	awful.key {
-		modifiers = { modkey, "Shift" },
-		key = "t",
-		on_press = function()
-			awful.prompt.run {
-				prompt = "Set the timer duration (minutes): ",
-				textbox = awful.screen.focused().mypromptbox.widget,
-				exe_callback = function(minutes)
-					timer.seconds = minutes * 60
-				end
-			}
-		end,
-		description = "set the timer duration",
-	},
-	awful.key {
-		modifiers = { "Mod1" },
-		key = "t",
-		on_press = function()
-			timer:toggle()
-		end,
-		description = "toggle the timer",
-	},
-	awful.key {
-		modifiers = { modkey, "Control" },
-		key = "t",
-		on_press = function()
-			timer:finish()
-		end,
-		description = "finish timer",
 	},
 }
 
