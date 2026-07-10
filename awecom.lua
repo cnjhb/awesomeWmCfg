@@ -4,6 +4,7 @@ local Gdk = lgi.require("Gdk", "3.0")
 local GLib = lgi.GLib
 local GLibUnix = lgi.GLibUnix
 local Vte = lgi.require("Vte", "2.91")
+local gears = require "gears"
 local term_colors = {
 	"#21222c",
 	"#ff5555",
@@ -59,6 +60,8 @@ return function(arg)
 		default_width = 800,
 		default_height = 600,
 	}
+
+	win:set_icon_from_file(gears.filesystem.get_awesome_icon_dir().."/awesome64.png")
 
 	function term:on_commit(text)
 		t:nonblocking_write(text)

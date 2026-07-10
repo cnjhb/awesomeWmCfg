@@ -5,6 +5,7 @@ local GLib = lgi.GLib
 local Vte = lgi.require("Vte", "2.91")
 local HOME = os.getenv "HOME"
 local SHELL = os.getenv "SHELL"
+local gears = require "gears"
 local term_colors = {
 	"#21222c",
 	"#ff5555",
@@ -44,13 +45,16 @@ return function(arg)
 		child = term,
 		title = "Terminal",
 	}
+
+	win:set_icon_from_file(gears.filesystem.get_awesome_icon_dir().."/awesome64.png")
+
 	function term:on_child_exited()
 		win:close()
 	end
 
 	term.on_termprop_changed[Vte.TERMPROP_XTERM_TITLE] = function()
 		local title = term:get_termprop_string(Vte.TERMPROP_XTERM_TITLE)
-		win.title = title and "" .. title or "Terminal"
+		win.title = title or "Terminal"
 	end
 	function win:on_key_press_event(event)
 		if event.state.CONTROL_MASK and event.state.SHIFT_MASK then
