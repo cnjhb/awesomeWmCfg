@@ -4,7 +4,7 @@ local Gdk = lgi.require("Gdk", "3.0")
 local GLib = lgi.GLib
 local GLibUnix = lgi.GLibUnix
 local Vte = lgi.require("Vte", "2.91")
-local gears = require "gears"
+local _, gears = pcall(require, "gears")
 local term_colors = {
 	"#21222c",
 	"#ff5555",
@@ -61,19 +61,27 @@ return function(arg)
 		default_height = 600,
 	}
 
-	win:set_icon_from_file(gears.filesystem.get_awesome_icon_dir().."/awesome64.png")
-
 	function term:on_commit(text)
 		t:nonblocking_write(text)
 	end
 
-	local tag = GLibUnix.fd_add_full(100, fd, GLib.IOCondition.IN, function()
+	local in_tag = GLibUnix.fd_add_full(GLib.PRIORITY_DEFAULT, fd, GLib.IOCondition.IN, function()
 		term:feed(t:nonblocking_read(1024))
 		return GLib.SOURCE_CONTINUE
 	end)
 
+	local hup_tag = GLibUnix.fd_add_full(GLib.PRIORITY_DEFAULT, fd, GLib.IOCondition.HUP, function()
+		win:close()
+		return GLib.SOURCE_CONTINUE
+	end)
+
+	if gears then
+		win:set_icon_from_file(gears.filesystem.get_awesome_icon_dir().."/awesome64.png")
+	end
+
 	function win:on_destroy()
-		GLib.Source.remove(tag)
+		GLib.Source.remove(in_tag)
+		GLib.Source.remove(hup_tag)
 		t:close()
 	end
 
