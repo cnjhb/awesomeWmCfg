@@ -80,6 +80,8 @@ local cal = awful.widget.calendar_popup.month()
 cal:attach(textclock, "tr")
 local tray = wibox.widget.systray()
 
+local volume = wibox.widget.textbox "󱄠"
+
 screen.connect_signal("request::desktop_decoration", function(s)
 	awful.tag({ "1", "2", "3", "4", "5", "6", "7",
 		"8", "9", "0" }, s, awful.layout.layouts[1])
@@ -123,6 +125,7 @@ screen.connect_signal("request::desktop_decoration", function(s)
 					screen = s,
 				},
 				textclock,
+				volume,
 			},
 		}
 	}
@@ -430,11 +433,13 @@ if source:lookup "cn.jhb.awesome" then
 		os.execute(string.format("amixer set Master %d%%", settings:get_int "volume"))
 	end
 	os.execute("amixer set Master " .. (settings:get_boolean "mute" and "mute" or "unmute"))
+	volume.text = settings:get_boolean "mute" and "󰝟" or "󱄠"
 	settings.on_changed["mute"] = function()
 		naughty.notification {
 			title = "mute",
 			message = string.format("%s", settings:get_boolean "mute")
 		}
+		volume.text = settings:get_boolean "mute" and "󰝟" or "󱄠"
 		os.execute("amixer set Master " .. (settings:get_boolean "mute" and "mute" or "unmute"))
 	end
 
