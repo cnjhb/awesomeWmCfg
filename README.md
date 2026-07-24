@@ -3,6 +3,7 @@
 2. vte
 3. libserialport
 4. luajit
+5. nerdfont
 
 ## 部署
 ```sh
