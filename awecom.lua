@@ -75,6 +75,18 @@ return function(arg)
 		return GLib.SOURCE_CONTINUE
 	end)
 
+	function win:on_key_press_event(event)
+		if event.state.CONTROL_MASK and event.state.SHIFT_MASK then
+			if event.keyval == Gdk.KEY_C then
+				term:copy_clipboard()
+				return true
+			elseif event.keyval == Gdk.KEY_V then
+				term:paste_clipboard()
+				return true
+			end
+		end
+	end
+
 	if gears then
 		win:set_icon_from_file(gears.filesystem.get_awesome_icon_dir().."/awesome64.png")
 	end
