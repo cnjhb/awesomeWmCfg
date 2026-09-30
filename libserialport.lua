@@ -78,8 +78,6 @@ void sp_free_port(struct sp_port *port);
 
 char *sp_get_port_name(const struct sp_port *port);
 
-enum sp_return sp_blocking_write(struct sp_port *port, const void *buf, size_t count, unsigned int timeout_ms);
-
 enum sp_return sp_input_waiting(struct sp_port *port);
 
 enum sp_return sp_nonblocking_read(struct sp_port *port, void *buf, size_t count);
