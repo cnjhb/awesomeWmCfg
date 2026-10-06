@@ -545,7 +545,7 @@ local function new(arg)
 		xalign = 0,
 	}
 
-	local header = Gtk.HeaderBar { show_close_button = true, title = "Files" }
+	local header = Gtk.HeaderBar { title = "Files" }
 	header:pack_start(nav_back)
 	header:pack_start(nav_forward)
 	header:pack_start(nav_up)
