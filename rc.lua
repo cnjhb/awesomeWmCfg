@@ -1,6 +1,5 @@
 local terminal = "sakura"
 local browser = "firefox"
-local file_manager = "thunar"
 local modkey = "Mod4"
 
 require "awful.autofocus"
@@ -20,6 +19,7 @@ local Gio = lgi.Gio
 Gtk.init()
 
 local aweterm = require "aweterm"
+local awfm = require "awfm"
 
 naughty.connect_signal("request::display_error", function(message, startup)
 	naughty.notification {
@@ -326,7 +326,7 @@ awful.keyboard.append_global_keybindings {
 	awful.key {
 		modifiers = { modkey },
 		key = "d",
-		on_press = function() awful.spawn(file_manager) end,
+		on_press = function() awfm.launch { terminal = terminal } end,
 		description = "open a file manager",
 	},
 	awful.key {
