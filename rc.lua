@@ -80,7 +80,180 @@ local cal = awful.widget.calendar_popup.month()
 cal:attach(textclock, "tr")
 local tray = wibox.widget.systray()
 
-local volume = wibox.widget.textbox "󱄠"
+-- Status bar icons are generated as vector graphics (see icons.lua): no
+-- symbol font or icon theme required.
+local icons = require "icons"
+
+local function status_icon(name)
+	local w, h = icons.size(name)
+	return wibox.widget {
+		widget        = wibox.widget.imagebox,
+		resize        = true,
+		upscale       = false,
+		halign        = "center",
+		valign        = "center",
+		forced_width  = w,
+		forced_height = h,
+	}
+end
+
+local volume_icon = status_icon "volume"
+local ac_icon = status_icon "ac"
+local battery_icon = status_icon "battery"
+local battery_text = wibox.widget {
+	widget = wibox.widget.textbox,
+	valign = "center",
+}
+local battery_box = wibox.widget {
+	layout = wibox.layout.fixed.horizontal,
+	spacing = 5,
+	battery_icon,
+	battery_text,
+}
+
+local function read_sysfs(path)
+	local f = io.open(path)
+	if not f then return nil end
+	local content = f:read "*a"
+	f:close()
+	return content
+end
+
+-- Power state comes from UPower; sysfs is the fallback when the daemon is
+-- not available.
+local upower, up_client, up_display, up_states
+do
+	local ok, mod = pcall(lgi.require, "UPowerGlib")
+	local ok2, client = ok and pcall(mod.Client) or false
+	if ok2 and client then
+		upower, up_client = mod, client
+		up_display = client:get_display_device()
+		up_states = {
+			[mod.DeviceState.CHARGING]          = "charging",
+			[mod.DeviceState.DISCHARGING]       = "discharging",
+			[mod.DeviceState.FULLY_CHARGED]     = "full",
+			[mod.DeviceState.EMPTY]             = "empty",
+			[mod.DeviceState.PENDING_CHARGE]    = "idle",
+			[mod.DeviceState.PENDING_DISCHARGE] = "idle",
+		}
+	end
+end
+
+local sysfs_states = {
+	charging = "charging",
+	discharging = "discharging",
+	full = "full",
+	["not charging"] = "idle",
+	unknown = "unknown",
+}
+
+-- Returns { ac = bool|nil, level = number|nil, status = string, ... }
+local function power_state()
+	local s = {}
+	if up_client then
+		for _, d in ipairs(up_client:get_devices()) do
+			if d.kind == upower.DeviceKind.LINE_POWER and d.online ~= nil then
+				s.ac = d.online == true
+			end
+		end
+		if up_display and (up_display.state ~= upower.DeviceState.UNKNOWN
+				or (up_display.percentage or 0) > 0) then
+			s.level = math.floor(up_display.percentage + 0.5)
+			s.status = up_states[up_display.state] or "unknown"
+			s.tte = up_display.time_to_empty
+			s.ttf = up_display.time_to_full
+		end
+	end
+	if s.ac == nil and s.level == nil then
+		local online = read_sysfs "/sys/class/power_supply/ACAD/online"
+		if online then
+			s.ac = tonumber(online) == 1
+		end
+		local capacity = tonumber(read_sysfs "/sys/class/power_supply/BAT0/capacity")
+		if capacity then
+			s.level = math.max(0, math.min(100, capacity))
+			local status = (read_sysfs "/sys/class/power_supply/BAT0/status" or ""):lower()
+			s.status = sysfs_states[status:match "^%s*(.-)%s*$"] or "unknown"
+		end
+	end
+	return s
+end
+
+local status_cn = {
+	charging = "充电中",
+	discharging = "放电中",
+	full = "已充满",
+	empty = "电量耗尽",
+	idle = "未充电",
+	unknown = "未知",
+}
+
+local function fmt_duration(sec)
+	if not sec or sec <= 0 then return nil end
+	local h = math.floor(sec / 3600)
+	local m = math.floor((sec % 3600) / 60)
+	if h > 0 then
+		return string.format("%d 小时 %d 分", h, m)
+	end
+	return string.format("%d 分钟", m)
+end
+
+local power_tooltip = awful.tooltip {
+	objects = { ac_icon, battery_box },
+	mode = "outside",
+	preferred_positions = { "bottom", "top" },
+}
+
+local function update_volume_icon(muted, level)
+	volume_icon.image = icons.volume {
+		muted = muted or level == 0,
+		fg = beautiful.fg_normal,
+		bg = beautiful.bg_normal,
+	}
+end
+update_volume_icon(false, 100) -- until the GSettings values are read
+
+local function refresh_power()
+	local s = power_state()
+	local fg, bg = beautiful.fg_normal, beautiful.bg_normal
+
+	ac_icon.visible = s.ac ~= nil
+	if s.ac ~= nil then
+		ac_icon.image = icons.ac { connected = s.ac, fg = fg, bg = bg }
+	end
+
+	local lines = {
+		string.format("交流电源：%s",
+			s.ac == nil and "未知" or (s.ac and "已接入" or "未接入")),
+	}
+
+	battery_box.visible = s.level ~= nil
+	if s.level ~= nil then
+		battery_icon.image = icons.battery {
+			level = s.level,
+			charging = s.status == "charging",
+			fg = fg, bg = bg,
+		}
+		battery_text.text = string.format("%d%%", s.level)
+		lines[#lines + 1] = string.format("电池：%d%%（%s）",
+			s.level, status_cn[s.status] or s.status)
+
+		local charging = s.status == "charging"
+		local eta = charging and fmt_duration(s.ttf) or fmt_duration(s.tte)
+		if eta then
+			lines[#lines + 1] = (charging and "充满还需 " or "预计可用 ") .. eta
+		end
+	end
+
+	power_tooltip.text = table.concat(lines, "\n")
+end
+
+gears.timer {
+	timeout = 5,
+	call_now = true,
+	autostart = true,
+	callback = refresh_power,
+}
 
 screen.connect_signal("request::desktop_decoration", function(s)
 	awful.tag({ "1", "2", "3", "4", "5", "6", "7",
@@ -119,13 +292,21 @@ screen.connect_signal("request::desktop_decoration", function(s)
 			},
 			tasklist,
 			{
-				layout = wibox.layout.fixed.horizontal,
-				tray,
-				awful.widget.layoutbox {
-					screen = s,
+				widget = wibox.container.margin,
+				left = 6,
+				right = 10,
+				{
+					layout = wibox.layout.fixed.horizontal,
+					spacing = 12,
+					tray,
+					awful.widget.layoutbox {
+						screen = s,
+					},
+					textclock,
+					volume_icon,
+					ac_icon,
+					battery_box,
 				},
-				textclock,
-				volume,
 			},
 		}
 	}
@@ -425,21 +606,22 @@ if source:lookup "cn.jhb.awesome" then
 	end
 
 	os.execute(string.format("amixer set Master %d%%", settings:get_int "volume"))
+	update_volume_icon(settings:get_boolean "mute", settings:get_int "volume")
 	settings.on_changed["volume"] = function()
 		naughty.notification {
 			title = "volume",
 			message = string.format("%d%%", settings:get_int "volume")
 		}
 		os.execute(string.format("amixer set Master %d%%", settings:get_int "volume"))
+		update_volume_icon(settings:get_boolean "mute", settings:get_int "volume")
 	end
 	os.execute("amixer set Master " .. (settings:get_boolean "mute" and "mute" or "unmute"))
-	volume.text = settings:get_boolean "mute" and "󰝟" or "󱄠"
 	settings.on_changed["mute"] = function()
 		naughty.notification {
 			title = "mute",
 			message = string.format("%s", settings:get_boolean "mute")
 		}
-		volume.text = settings:get_boolean "mute" and "󰝟" or "󱄠"
+		update_volume_icon(settings:get_boolean "mute", settings:get_int "volume")
 		os.execute("amixer set Master " .. (settings:get_boolean "mute" and "mute" or "unmute"))
 	end
 
