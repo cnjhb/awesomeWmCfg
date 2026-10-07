@@ -450,7 +450,7 @@ local function new(arg)
 
 	-- widget callbacks below are wired before these are defined
 	local load, go, go_back, go_forward, go_up
-	local toggle_hidden, toggle_location, current_uri
+	local toggle_hidden, current_uri
 
 	-- ----------------------------------------------------------- widgets
 	local view = Gtk.TreeView { model = store }
@@ -538,8 +538,6 @@ local function new(arg)
 		end
 	end
 
-	local path_button = Gtk.Button { relief = Gtk.ReliefStyle.NONE }
-	path_button.on_clicked = function() toggle_location(true) end
 	local location = Gtk.Entry {
 		placeholder_text = "path or URI, e.g. ~/Downloads or sftp://host/",
 		xalign = 0,
@@ -551,20 +549,20 @@ local function new(arg)
 	header:pack_start(nav_up)
 	header:pack_start(refresh_button)
 	header:pack_end(hidden_button)
-	header:pack_start(path_button)
-	header:pack_start(location)
+	-- the address bar is always shown and stretches with the window
+	header:pack_start(location, true, true, 0)
 	win:set_titlebar(header)
 
 	location.on_activate = function(entry)
 		local text = trim(entry.text)
 		if text ~= "" then
-			toggle_location(false)
 			idle(function() go(to_uri(text)) end)
+			view:grab_focus()
 		end
 	end
 	location.on_key_press_event = function(_, event)
 		if event.keyval == Gdk.KEY_Escape then
-			toggle_location(false)
+			view:grab_focus()
 			return true
 		end
 		return false
@@ -858,8 +856,11 @@ local function new(arg)
 		local in_recent = uri == RECENT_URI
 		local where = place_name(uri)
 		win.title = where
-		local label = path_button
-		label.label = where
+		header.title = where
+		-- keep the read-only address bar in sync with where we are
+		if not location.has_focus then
+			location.text = uri
+		end
 		update_status()
 
 		-- fail fast (and synchronously) for missing or unreadable places
@@ -1260,20 +1261,11 @@ local function new(arg)
 		load(current_uri())
 	end
 
-	function toggle_location(force)
-		local show = force
-		if show == nil then
-			show = not location.visible
-		end
-		location.visible = show
-		path_button.visible = not show
-		if show then
-			location.text = current_uri()
-			location:grab_focus()
-			location:select_region(0, -1)
-		else
-			view:grab_focus()
-		end
+	-- the address bar is always visible: this just drops focus into it and
+	-- selects what is there, like a browser location bar (Ctrl+L)
+	local function focus_location()
+		location:grab_focus()
+		location:select_region(0, -1)
 	end
 
 	local function context_menu(event)
@@ -1381,13 +1373,14 @@ local function new(arg)
 			end
 		end },
 		{ Gdk.KEY_v, "ctrl", paste },
-		{ Gdk.KEY_l, "ctrl", function() toggle_location() end },
+		{ Gdk.KEY_l, "ctrl", focus_location },
 		{ Gdk.KEY_h, "ctrl", toggle_hidden },
 		{ Gdk.KEY_n, "ctrl", new_folder },
 	}
 
 	win.on_key_press_event = function(_, event)
-		if location.visible then
+		-- while the address bar is being edited, its keys stay its own
+		if location.has_focus then
 			return false
 		end
 		-- lgi hands Gdk.ModifierType over as a table whose truthy keys are the
@@ -1428,9 +1421,7 @@ local function new(arg)
 
 	-- ---------------------------------------------------------- kick off
 	win:show_all()
-	location.visible = false
 	win.title = "Files"
-	path_button.label = base_name(HOME)
 	-- focus has to wait until the window is on screen, otherwise the
 	-- sidebar keeps it and the arrow keys walk the places instead of the files
 	view:grab_focus()
